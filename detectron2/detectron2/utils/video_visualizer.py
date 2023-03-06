@@ -139,6 +139,100 @@ class VideoVisualizer:
         )
 
         return frame_visualizer.output
+    
+    def draw_dict_predictions(self, frame, predictions):
+        """
+        Draw instance-level prediction results on an image.
+
+        Args:
+            frame (ndarray): an RGB image of shape (H, W, C), in the range [0, 255].
+            predictions (Dict): the output of an instance detection/segmentation
+                model. Following fields will be used to draw:
+                "bboxes", "confidence".
+
+        Returns:
+            output (VisImage): image object with visualizations.
+        """
+        frame_visualizer = Visualizer(frame, self.metadata)
+        num_instances = len(predictions["confidence"])
+        if num_instances == 0:
+            return frame_visualizer.output
+
+        boxes = predictions["bboxes"]
+        scores = predictions["confidence"]
+        classes = predictions.pred_classes.numpy() if "pred_classes" in predictions else [0]*num_instances
+        keypoints = predictions.pred_keypoints if "pred_keypoints" in predictions else None
+        colors = predictions.COLOR if  "COLOR" in predictions else [None] * num_instances
+        periods = predictions.ID_period if "ID_period" in predictions else None
+        period_threshold = self.metadata.get("period_threshold", 0)
+        visibilities = (
+            [True] * num_instances
+            if periods is None
+            else [x > period_threshold for x in periods]
+        )
+
+        if "pred_masks" in predictions:
+            masks = predictions.pred_masks
+            # mask IOU is not yet enabled
+            # masks_rles = mask_util.encode(np.asarray(masks.permute(1, 2, 0), order="F"))
+            # assert len(masks_rles) == num_instances
+        else:
+            masks = None
+
+        if not "COLOR" in predictions:
+            if "ID" in predictions:
+                colors = self._assign_colors_by_id(predictions)
+            else:
+                
+                # ToDo: clean old assign color method and use a default tracker to assign id
+                detected = [
+                    _DetectedInstance(classes[i], boxes[i], mask_rle=None, color=colors[i], ttl=8)
+                    for i in range(num_instances)
+                ]
+                colors = self._assign_colors(detected)
+
+        labels = _create_text_labels(classes, scores, self.metadata.get("thing_classes", None))
+
+        if self._instance_mode == ColorMode.IMAGE_BW:
+            # any() returns uint8 tensor
+            frame_visualizer.output.reset_image(
+                frame_visualizer._create_grayscale_image(
+                    (masks.any(dim=0) > 0).numpy() if masks is not None else None
+                )
+            )
+            alpha = 0.3
+        else:
+            alpha = 0.5
+
+        labels = (
+            None
+            if labels is None
+            else [y[0] for y in filter(lambda x: x[1], zip(labels, visibilities))]
+        )  # noqa
+        assigned_colors = (
+            None
+            if colors is None
+            else [y[0] for y in filter(lambda x: x[1], zip(colors, visibilities))]
+        )  # noqa
+        
+        ######
+        print("\nBABABAAAAAA : ",np.array(boxes)[:, 2:])
+        
+        print("\n",np.array(boxes)[:, :2],"\n")
+        ######
+        
+        frame_visualizer.overlay_instances(
+            #boxes=None if masks is not None else boxes[visibilities],  # boxes are a bit distracting
+            #masks=None if masks is None else masks[visibilities],
+            boxes=None if masks is not None else np.array(boxes),  # boxes are a bit distracting
+            masks=None if masks is None else masks,
+            labels=labels,
+            keypoints=None if keypoints is None else keypoints[visibilities],
+            assigned_colors=assigned_colors,
+            alpha=alpha,
+        )
+
+        return frame_visualizer.output
 
     def draw_sem_seg(self, frame, sem_seg, area_threshold=None):
         """

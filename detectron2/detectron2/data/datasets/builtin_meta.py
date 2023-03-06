@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
+#
+# Modified by Peize Sun
+#
 # Copyright (c) Facebook, Inc. and its affiliates.
-
+#
 """
 Note:
 For your custom dataset, there is no need to hard-code metadata anywhere in the code.
 For example, for COCO-format dataset, metadata will be obtained automatically
 when calling `load_coco_json`. For other dataset, metadata may also be obtained in other ways
 during loading.
-
 However, we hard-coded metadata for a few common dataset here.
 The only goal is to allow users who don't have these dataset to use pre-trained models.
 Users don't have to download a COCO json (which contains metadata), in order to visualize a
@@ -231,6 +233,15 @@ ADE20K_SEM_SEG_CATEGORIES = [
 # After processed by `prepare_ade20k_sem_seg.py`, id 255 means ignore
 # fmt: on
 
+# MOT.
+MOT_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "pedestrian"},
+]
+# CrowdHuman.
+CROWDHUMAN_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "person"},
+]
+
 
 def _get_coco_instances_meta():
     thing_ids = [k["id"] for k in COCO_CATEGORIES if k["isthing"] == 1]
@@ -347,4 +358,30 @@ def _get_builtin_metadata(dataset_name):
             "thing_classes": CITYSCAPES_THING_CLASSES,
             "stuff_classes": CITYSCAPES_STUFF_CLASSES,
         }
+    elif dataset_name == "mot":
+        thing_ids = [k["id"] for k in MOT_CATEGORIES if k["isthing"] == 1]
+        thing_colors = [k["color"] for k in MOT_CATEGORIES if k["isthing"] == 1]
+        assert len(thing_ids) == 1, len(thing_ids)
+        thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+        thing_classes = [k["name"] for k in MOT_CATEGORIES if k["isthing"] == 1]
+        ret = {
+            "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+            "thing_classes": thing_classes,
+            "thing_colors": thing_colors,
+        }
+        return ret
+    elif dataset_name == "crowdhuman":
+        thing_ids = [k["id"] for k in CROWDHUMAN_CATEGORIES if k["isthing"] == 1]
+        thing_colors = [k["color"] for k in CROWDHUMAN_CATEGORIES if k["isthing"] == 1]
+        assert len(thing_ids) == 1, len(thing_ids)
+        thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+        thing_classes = [k["name"] for k in CROWDHUMAN_CATEGORIES if k["isthing"] == 1]
+        ret = {
+            "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+            "thing_classes": thing_classes,
+            "thing_colors": thing_colors,
+            "class_image_count":{},
+        }
+        return ret
+
     raise KeyError("No built-in metadata for dataset {}".format(dataset_name))
