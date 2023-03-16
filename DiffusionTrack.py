@@ -559,7 +559,7 @@ if __name__ == "__main__":
 
             exp.test_conf = max(0.001, args.track_low_thresh - 0.01)
             print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
-            ch="Processing video "+seq
+            ch="Processing video "+seq + ' ({}/{})'.format(j,len(seqs))
             print('{:^120}'.format(ch))
             print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
             main(exp, args)
