@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import torch
 import csv
+import textwrap
 
 sys.path.append('.')
 sys.path.insert(0, os.path.abspath('./SMILEtrack/BoT-SORT/'))
@@ -204,11 +205,12 @@ class Predictor(object):
 def diffdet_detections(args):
 
     logger = logging.getLogger("DiffTrack.DiffusionDet")
-
+    logger.info("Beginning detection...")
     cfg = setup_cfg(args)
 
     predictor = DefaultPredictor(cfg)
-    output_path = args.output_dir
+    out_folder = osp.join(args.output_dir, "Detection_results")
+    os.makedirs(out_folder, exist_ok=True)
 
     video_name = os.path.split(os.path.split(args.path)[0])[1]
 
@@ -236,7 +238,7 @@ def diffdet_detections(args):
             print(e)
         frame_id+=1
     if args.save_det :
-        output = os.path.join(args.output_dir,"detection_results/"+video_name+".txt")
+        output = os.path.join(out_folder,video_name+".txt")
         with open(output,"w") as det_file:
                     writer = csv.writer(det_file)
                     writer.writerows(detection_list)
@@ -248,10 +250,11 @@ def diffdet_detections(args):
     
 
 
-def image_track(predictor, vis_folder, args):
+def image_track(predictor, args):
 
     logger = logging.getLogger("DiffTrack.SMILEtrack")
     logger.info("Beginning tracking...")
+
     if osp.isdir(args.path):
         files = get_image_list(args.path)
     else:
@@ -260,6 +263,14 @@ def image_track(predictor, vis_folder, args):
 
     if args.ablation:
         files = files[len(files) // 2 + 1:]
+
+
+    vis_folder = osp.join(args.output_dir, "Results_vis")
+    os.makedirs(vis_folder, exist_ok=True)
+    
+    out_folder = osp.join(args.output_dir, "Tracking_results")
+    os.makedirs(out_folder, exist_ok=True)
+
 
     num_frames = len(files)
 
@@ -354,7 +365,7 @@ def image_track(predictor, vis_folder, args):
         if frame_id % 20 == 0:
             logger.info('Processing frame {}/{} ({:.2f} fps)'.format(frame_id, num_frames, 1. / max(1e-5, timer.average_time)))
 
-    res_file = osp.join(vis_folder, args.name + ".txt")
+    res_file = osp.join(out_folder, args.name + ".txt")
 
     with open(res_file, 'w') as f:
         f.writelines(results)
@@ -369,8 +380,6 @@ def main(exp, args):
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-    vis_folder = osp.join(output_dir, "Tracking_results")
-    os.makedirs(vis_folder, exist_ok=True)
 
     args.device = torch.device("cuda" if args.device == "gpu" else "cpu")
 
@@ -413,8 +422,7 @@ def main(exp, args):
     else :
         detections = diffdet_detections(args)
     
-    logger=logging.getLogger("SMILEtrack")
-    image_track(detections, vis_folder, args)
+    image_track(detections, args)
 
 
 if __name__ == "__main__":
@@ -550,7 +558,9 @@ if __name__ == "__main__":
                 exp = get_exp(args.exp_file, args.name)
 
             exp.test_conf = max(0.001, args.track_low_thresh - 0.01)
-            logger.info('Processing video {}\n'.format(seq))
+            print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
+            ch="Processing video "+seq
+            print('{:^120}'.format(ch))
             main(exp, args)
 
     mainTimer.toc()
