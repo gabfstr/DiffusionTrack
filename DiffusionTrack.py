@@ -561,6 +561,7 @@ if __name__ == "__main__":
             print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
             ch="Processing video "+seq
             print('{:^120}'.format(ch))
+            print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
             main(exp, args)
 
     mainTimer.toc()
