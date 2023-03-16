@@ -208,22 +208,20 @@ def diffdet_detections(args):
     cfg = setup_cfg(args)
 
     predictor = DefaultPredictor(cfg)
-
     output_path = args.output_dir
 
     video_name = os.path.split(os.path.split(args.path)[0])[1]
-    logger.info("\n Scanning video {}\n".format(video_name))
-
 
     frame_id=1
     
+    detection_list=[]
     for img in tqdm.tqdm(sorted(glob.glob("{}/*.jpg".format(args.path)))):
         predictions = predictor(read_image(img,format="BGR"))
         try :
             scores = predictions['instances'].to('cpu').scores.numpy()
             classes = predictions['instances'].to('cpu').pred_classes.numpy()
             #print("classes of the predicitons : ",classes)
-            detection_list=[]
+            
             for j in range(len(scores)):
                 if (scores[j] > args.confidence_threshold) and (classes[j]==args.class_id) :
                 # class for human in lvis dataset : 792
@@ -238,11 +236,11 @@ def diffdet_detections(args):
             print(e)
         frame_id+=1
     if args.save_det :
-        output = os.path.join(args.output_dir,"det.txt")
+        output = os.path.join(args.output_dir,"detection_results/"+video_name+".txt")
         with open(output,"w") as det_file:
                     writer = csv.writer(det_file)
                     writer.writerows(detection_list)
-        print("Results written in {}".format(output_path))
+        logger.info("Detections saved in {}".format(output))
     
     detection_list=np.array(detection_list)
     
@@ -253,7 +251,7 @@ def diffdet_detections(args):
 def image_track(predictor, vis_folder, args):
 
     logger = logging.getLogger("DiffTrack.SMILEtrack")
-
+    logger.info("Beginning tracking...")
     if osp.isdir(args.path):
         files = get_image_list(args.path)
     else:
@@ -360,7 +358,7 @@ def image_track(predictor, vis_folder, args):
 
     with open(res_file, 'w') as f:
         f.writelines(results)
-    logger.info(f"save results to {res_file}")
+    logger.info(f"saving results to {res_file}")
 
 
 def main(exp, args):
@@ -371,7 +369,7 @@ def main(exp, args):
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-    vis_folder = osp.join(output_dir, "track_results")
+    vis_folder = osp.join(output_dir, "Tracking_results")
     os.makedirs(vis_folder, exist_ok=True)
 
     args.device = torch.device("cuda" if args.device == "gpu" else "cpu")
@@ -552,6 +550,7 @@ if __name__ == "__main__":
                 exp = get_exp(args.exp_file, args.name)
 
             exp.test_conf = max(0.001, args.track_low_thresh - 0.01)
+            logger.info('Processing video {}\n'.format(seq))
             main(exp, args)
 
     mainTimer.toc()
