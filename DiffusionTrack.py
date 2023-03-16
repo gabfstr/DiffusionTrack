@@ -10,11 +10,12 @@ import torch
 import csv
 
 sys.path.append('.')
-sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/'))
-sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/yolox/'))
-sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/yolox/exps/example/mot/'))
-sys.path.insert(0, os.path.abspath('detectron2/'))
-sys.path.insert(0, os.path.abspath('DiffusionDet/'))
+sys.path.insert(0, os.path.abspath('./SMILEtrack/BoT-SORT/'))
+sys.path.insert(0, os.path.abspath('./SMILEtrack/BoT-SORT/yolox/'))
+sys.path.insert(0, os.path.abspath('./SMILEtrack/BoT-SORT/yolox/exps/example/mot/'))
+sys.path.insert(0, os.path.abspath('./detectron2/'))
+sys.path.insert(0, os.path.abspath('./DiffusionDet/'))
+
 # sys.path.insert(0, os.path.abspath('../'))
 # sys.path.insert(0, os.path.abspath('../yolox'))
 
@@ -52,7 +53,7 @@ def make_parser():
 
     # Data
     parser.add_argument("path", default = "../../DiffusionDet/datasets/mot/" ,help="path to dataset under evaluation, currently only support MOT17 and MOT20.")
-    parser.add_argument("-o", "--output_dir","--output-dir","--output", default="output", type=str, help="desired output folder for experiment results")
+    parser.add_argument("-o", "--output-dir", default="output", type=str, help="desired output folder for experiment results")
     parser.add_argument("--save-det",help="If True, will store detections in an additional separate file.",default = True)
 
 
@@ -71,8 +72,7 @@ def make_parser():
     parser.add_argument("--confidence-threshold","--det-thresh",type=float,default=0.5,help="Minimum score for instance predictions to be shown",)
     parser.add_argument("--class-id","--det-class",type=int,default=0,help="Id of the class to be detected",)
     parser.add_argument("--opts",help="Modify config options using the command-line 'KEY VALUE' pairs",default=[],nargs=argparse.REMAINDER,)
-    parser.add_argument("--detection_folder", "--detection-folder","detection-file","det-file","det-folder",
-                         default=None, type=str, help="Set to folder with detections files in MOT17Det format to run track on existing detection file.")
+    parser.add_argument("--det-folder","--detection-folder", default="", type=str, help="Set to folder with detections files in MOT17Det format to run track on existing detection file.")
     
 
     # Parameters
@@ -202,9 +202,11 @@ class Predictor(object):
 
 def diffdet_detections(args):
 
+    cfg = setup_cfg(args)
+
     predictor = DefaultPredictor(cfg)
 
-    output_path = args.output
+    output_path = args.output_dir
 
     video_name = os.path.split(os.path.split(args.path)[0])[1]
     print("\n Scanning video {}".format(video_name),"\n")
@@ -234,7 +236,7 @@ def diffdet_detections(args):
             print(e)
         frame_id+=1
     if args.save_det :
-        output = os.path.join(args.output,"det.txt")
+        output = os.path.join(args.output_dir,"det.txt")
         with open(output,"w") as det_file:
                     writer = csv.writer(det_file)
                     writer.writerows(detection_list)
@@ -357,6 +359,10 @@ def image_track(predictor, vis_folder, args):
 
 
 def main(exp, args):
+
+    if not args.experiment_name:
+        args.experiment_name = exp.exp_name
+    
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
@@ -399,8 +405,8 @@ def main(exp, args):
     # predictor = Predictor(model, exp, args.device, args.fp16)
 ############
 
-    if args.det_files :
-        detections = np.loadtxt(args.det_file,delimiter=',')
+    if len(args.det_folder)>=1 :
+        detections = np.loadtxt(args.det_folder,delimiter=',')
 
     else :
         detections = diffdet_detections(args)
@@ -414,19 +420,17 @@ if __name__ == "__main__":
     logger = setup_logger()
     logger.info("Arguments: " + str(args))
 
-    if not args.experiment_name:
-        args.experiment_name = exp.exp_name
-
-    if len(args.input) >= 1:
-        args.input = sorted(glob.glob((args.input)))
-        assert args.input, "The input path(s) was not found"
+    if len(args.path) >= 1:
+        args.path = sorted(glob.glob((args.path)))
+        assert args.path, "The input path(s) was not found"
     
-    if args.output:
-        assert len(args.output) >= 1, "Please specify a directory with args.output"
-        out_filename = args.output
+    if args.output_dir:
+        assert len(args.output_dir) >= 1, "Please specify a directory with args.output_dir"
+        out_filename = args.output_dir
 
-    if os.path.isfile(args.output):
+    if os.path.isfile(args.output_dir):
         out_filename = os.path.split(out_filename)[0]
+
     
     logger.info("Output tracked detections will be stored in {}".format(out_filename))
     
@@ -464,8 +468,8 @@ if __name__ == "__main__":
     mainTimer = Timer()
     mainTimer.tic()
     
-    if args.det_files :
-        det_files = sorted(glob.glob(args.detection_folder + '/*'))
+    if len(args.det_folder)>=1 :
+        det_files = sorted(glob.glob(args.det_folder + '/*'))
         print("Loading detection files :",det_files)
     
     for ext in seqs_ext:
@@ -489,13 +493,13 @@ if __name__ == "__main__":
             args.batch_size = 1
             args.trt = False
             
-            if args.det_files :
-                args.det_file=det_files[j]
+            if len(args.det_folder)>=1 :
+                args.det_folder=det_files[j]
             j+=1
             
 
             split = 'train' if i in train_seqs else 'test'
-            args.path = data_path + '/' + split + '/' + seq + '/' + 'img1'
+            args.path = data_path[0] + '/' + split + '/' + seq + '/' + 'img1'
 
             if args.default_parameters:
 
