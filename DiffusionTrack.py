@@ -2,6 +2,7 @@ import argparse
 import os, glob
 import sys
 import tqdm
+import logging
 import os.path as osp
 import multiprocessing as mp
 import cv2
@@ -147,7 +148,7 @@ def write_results(filename, results):
                 line = save_format.format(frame=frame_id, id=track_id, x1=round(x1, 1), y1=round(y1, 1), w=round(w, 1),
                                           h=round(h, 1), s=round(score, 2))
                 f.write(line)
-    logger.info('save results to {}'.format(filename))
+    logger.info('saving results to {}'.format(filename))
 
 
 class Predictor(object):
@@ -202,6 +203,8 @@ class Predictor(object):
 
 def diffdet_detections(args):
 
+    logger = logging.getLogger("DiffTrack.DiffusionDet")
+
     cfg = setup_cfg(args)
 
     predictor = DefaultPredictor(cfg)
@@ -209,9 +212,8 @@ def diffdet_detections(args):
     output_path = args.output_dir
 
     video_name = os.path.split(os.path.split(args.path)[0])[1]
-    print("\n Scanning video {}".format(video_name),"\n")
+    logger.info("\n Scanning video {}\n".format(video_name))
 
-    #### ?
 
     frame_id=1
     
@@ -249,6 +251,9 @@ def diffdet_detections(args):
 
 
 def image_track(predictor, vis_folder, args):
+
+    logger = logging.getLogger("DiffTrack.SMILEtrack")
+
     if osp.isdir(args.path):
         files = get_image_list(args.path)
     else:
@@ -371,7 +376,6 @@ def main(exp, args):
 
     args.device = torch.device("cuda" if args.device == "gpu" else "cpu")
 
-    logger.info("Args: {}".format(args))
 
     if args.conf is not None:
         exp.test_conf = args.conf
@@ -410,14 +414,15 @@ def main(exp, args):
 
     else :
         detections = diffdet_detections(args)
+    
+    logger=logging.getLogger("SMILEtrack")
     image_track(detections, vis_folder, args)
 
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
     args = make_parser().parse_args()
-    setup_logger(name="fvcore")
-    logger = setup_logger()
+    logger = setup_logger(name="DiffTrack")
     logger.info("Arguments: " + str(args))
 
     if len(args.path) >= 1:
@@ -470,7 +475,7 @@ if __name__ == "__main__":
     
     if len(args.det_folder)>=1 :
         det_files = sorted(glob.glob(args.det_folder + '/*'))
-        print("Loading detection files :",det_files)
+        logger.info("Loading detection files : "+str(det_files))
     
     for ext in seqs_ext:
         j=0
