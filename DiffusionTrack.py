@@ -2,18 +2,22 @@ import argparse
 import os, glob
 import sys
 import tqdm
+import logging
 import os.path as osp
 import multiprocessing as mp
 import cv2
 import numpy as np
 import torch
 import csv
+import textwrap
 
 sys.path.append('.')
-sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/'))
-sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/yolox/'))
-sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/yolox/exps/example/mot/'))
-sys.path.insert(0, os.path.abspath('detectron2/'))
+sys.path.insert(0, os.path.abspath('./SMILEtrack/BoT-SORT/'))
+sys.path.insert(0, os.path.abspath('./SMILEtrack/BoT-SORT/yolox/'))
+sys.path.insert(0, os.path.abspath('./SMILEtrack/BoT-SORT/yolox/exps/example/mot/'))
+sys.path.insert(0, os.path.abspath('./detectron2/'))
+sys.path.insert(0, os.path.abspath('./DiffusionDet/'))
+
 # sys.path.insert(0, os.path.abspath('../'))
 # sys.path.insert(0, os.path.abspath('../yolox'))
 
@@ -22,14 +26,12 @@ sys.path.insert(0, os.path.abspath('detectron2/'))
 # import detectron2 utilities
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
-from detectron2.config import get_cfg
 from detectron2.utils.logger import setup_logger
 from detectron2.data.detection_utils import read_image
 
 
-from diffusiondet import add_diffusiondet_config, DiffusionDetWithTTA
-from diffusiondet.util.model_ema import add_model_ema_configs, may_build_model_ema, may_get_ema_checkpointer, EMAHook, \
-    apply_model_ema_and_restore, EMADetectionCheckpointer
+from diffusiondet import add_diffusiondet_config
+from diffusiondet.util.model_ema import add_model_ema_configs
 
 # import SMILEtrack utilities
 from yolox.data.data_augment import preproc
@@ -53,7 +55,7 @@ def make_parser():
 
     # Data
     parser.add_argument("path", default = "../../DiffusionDet/datasets/mot/" ,help="path to dataset under evaluation, currently only support MOT17 and MOT20.")
-    parser.add_argument("-o", "--output_dir","--output-dir","--output", default="output", type=str, help="desired output folder for experiment results")
+    parser.add_argument("-o", "--output-dir", default="output", type=str, help="desired output folder for experiment results")
     parser.add_argument("--save-det",help="If True, will store detections in an additional separate file.",default = True)
 
 
@@ -72,8 +74,7 @@ def make_parser():
     parser.add_argument("--confidence-threshold","--det-thresh",type=float,default=0.5,help="Minimum score for instance predictions to be shown",)
     parser.add_argument("--class-id","--det-class",type=int,default=0,help="Id of the class to be detected",)
     parser.add_argument("--opts",help="Modify config options using the command-line 'KEY VALUE' pairs",default=[],nargs=argparse.REMAINDER,)
-    parser.add_argument("--detection_folder", "--detection-folder","detection-file","det-file","det-folder",
-                         default=None, type=str, help="Set to folder with detections files in MOT17Det format to run track on existing detection file.")
+    parser.add_argument("--det-folder","--detection-folder", default="", type=str, help="Set to folder with detections files in MOT17Det format to run track on existing detection file.")
     
 
     # Parameters
@@ -148,7 +149,7 @@ def write_results(filename, results):
                 line = save_format.format(frame=frame_id, id=track_id, x1=round(x1, 1), y1=round(y1, 1), w=round(w, 1),
                                           h=round(h, 1), s=round(score, 2))
                 f.write(line)
-    logger.info('save results to {}'.format(filename))
+    logger.info('saving results to {}'.format(filename))
 
 
 class Predictor(object):
@@ -203,24 +204,26 @@ class Predictor(object):
 
 def diffdet_detections(args):
 
-    predictor = DefaultPredictor(cfg)
+    logger = logging.getLogger("DiffTrack.DiffusionDet")
+    logger.info("Beginning detection...")
+    cfg = setup_cfg(args)
 
-    output_path = args.output
+    predictor = DefaultPredictor(cfg)
+    out_folder = osp.join(args.output_dir, "Detection_results")
+    os.makedirs(out_folder, exist_ok=True)
 
     video_name = os.path.split(os.path.split(args.path)[0])[1]
-    print("\n Scanning video {}".format(video_name),"\n")
-
-    #### ?
 
     frame_id=1
     
+    detection_list=[]
     for img in tqdm.tqdm(sorted(glob.glob("{}/*.jpg".format(args.path)))):
         predictions = predictor(read_image(img,format="BGR"))
         try :
             scores = predictions['instances'].to('cpu').scores.numpy()
             classes = predictions['instances'].to('cpu').pred_classes.numpy()
             #print("classes of the predicitons : ",classes)
-            detection_list=[]
+            
             for j in range(len(scores)):
                 if (scores[j] > args.confidence_threshold) and (classes[j]==args.class_id) :
                 # class for human in lvis dataset : 792
@@ -235,11 +238,11 @@ def diffdet_detections(args):
             print(e)
         frame_id+=1
     if args.save_det :
-        output = os.path.join(args.output,"det.txt")
+        output = os.path.join(out_folder,video_name+".txt")
         with open(output,"w") as det_file:
                     writer = csv.writer(det_file)
                     writer.writerows(detection_list)
-        print("Results written in {}".format(output_path))
+        logger.info("Detections saved in {}".format(output))
     
     detection_list=np.array(detection_list)
     
@@ -247,7 +250,11 @@ def diffdet_detections(args):
     
 
 
-def image_track(predictor, vis_folder, args):
+def image_track(predictor, args):
+
+    logger = logging.getLogger("DiffTrack.SMILEtrack")
+    logger.info("Beginning tracking...")
+
     if osp.isdir(args.path):
         files = get_image_list(args.path)
     else:
@@ -256,6 +263,14 @@ def image_track(predictor, vis_folder, args):
 
     if args.ablation:
         files = files[len(files) // 2 + 1:]
+
+
+    vis_folder = osp.join(args.output_dir, "Results_vis")
+    os.makedirs(vis_folder, exist_ok=True)
+    
+    out_folder = osp.join(args.output_dir, "Tracking_results")
+    os.makedirs(out_folder, exist_ok=True)
+
 
     num_frames = len(files)
 
@@ -350,23 +365,24 @@ def image_track(predictor, vis_folder, args):
         if frame_id % 20 == 0:
             logger.info('Processing frame {}/{} ({:.2f} fps)'.format(frame_id, num_frames, 1. / max(1e-5, timer.average_time)))
 
-    res_file = osp.join(vis_folder, args.name + ".txt")
+    res_file = osp.join(out_folder, args.name + ".txt")
 
     with open(res_file, 'w') as f:
         f.writelines(results)
-    logger.info(f"save results to {res_file}")
+    logger.info(f"saving results to {res_file}")
 
 
 def main(exp, args):
+
+    if not args.experiment_name:
+        args.experiment_name = exp.exp_name
+    
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-    vis_folder = osp.join(output_dir, "track_results")
-    os.makedirs(vis_folder, exist_ok=True)
 
     args.device = torch.device("cuda" if args.device == "gpu" else "cpu")
 
-    logger.info("Args: {}".format(args))
 
     if args.conf is not None:
         exp.test_conf = args.conf
@@ -400,34 +416,32 @@ def main(exp, args):
     # predictor = Predictor(model, exp, args.device, args.fp16)
 ############
 
-    if args.det_files :
-        detections = np.loadtxt(args.det_file,delimiter=',')
+    if len(args.det_folder)>=1 :
+        detections = np.loadtxt(args.det_folder,delimiter=',')
 
     else :
         detections = diffdet_detections(args)
-    image_track(detections, vis_folder, args)
+    
+    image_track(detections, args)
 
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
     args = make_parser().parse_args()
-    setup_logger(name="fvcore")
-    logger = setup_logger()
+    logger = setup_logger(name="DiffTrack")
     logger.info("Arguments: " + str(args))
 
-    if not args.experiment_name:
-        args.experiment_name = exp.exp_name
-
-    if len(args.input) >= 1:
-        args.input = sorted(glob.glob((args.input)))
-        assert args.input, "The input path(s) was not found"
+    if len(args.path) >= 1:
+        args.path = sorted(glob.glob((args.path)))
+        assert args.path, "The input path(s) was not found"
     
-    if args.output:
-        assert len(args.output) >= 1, "Please specify a directory with args.output"
-        out_filename = args.output
+    if args.output_dir:
+        assert len(args.output_dir) >= 1, "Please specify a directory with args.output_dir"
+        out_filename = args.output_dir
 
-    if os.path.isfile(args.output):
+    if os.path.isfile(args.output_dir):
         out_filename = os.path.split(out_filename)[0]
+
     
     logger.info("Output tracked detections will be stored in {}".format(out_filename))
     
@@ -465,9 +479,9 @@ if __name__ == "__main__":
     mainTimer = Timer()
     mainTimer.tic()
     
-    if args.det_files :
-        det_files = sorted(glob.glob(args.detection_folder + '/*'))
-        print("Loading detection files :",det_files)
+    if len(args.det_folder)>=1 :
+        det_files = sorted(glob.glob(args.det_folder + '/*'))
+        logger.info("Loading detection files : "+str(det_files))
     
     for ext in seqs_ext:
         j=0
@@ -490,13 +504,13 @@ if __name__ == "__main__":
             args.batch_size = 1
             args.trt = False
             
-            if args.det_files :
-                args.det_file=det_files[j]
+            if len(args.det_folder)>=1 :
+                args.det_folder=det_files[j]
             j+=1
             
 
             split = 'train' if i in train_seqs else 'test'
-            args.path = data_path + '/' + split + '/' + seq + '/' + 'img1'
+            args.path = data_path[0] + '/' + split + '/' + seq + '/' + 'img1'
 
             if args.default_parameters:
 
@@ -544,6 +558,10 @@ if __name__ == "__main__":
                 exp = get_exp(args.exp_file, args.name)
 
             exp.test_conf = max(0.001, args.track_low_thresh - 0.01)
+            print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
+            ch="Processing video "+seq + ' ({}/{})'.format(j,len(seqs))
+            print('{:^120}'.format(ch))
+            print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
             main(exp, args)
 
     mainTimer.toc()

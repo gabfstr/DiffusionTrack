@@ -37,9 +37,9 @@ class GMC:
             seqName = verbose[0]
             ablation = verbose[1]
             if ablation:
-                filePath = r'tracker/GMC_files/MOT17_ablation'
+                filePath = r'SMILEtrack/BoT-SORT/tracker/GMC_files/MOT17_ablation'
             else:
-                filePath = r'tracker/GMC_files/MOTChallenge'
+                filePath = r'SMILEtrack/BoT-SORT/tracker/GMC_files/MOTChallenge'
 
             if '-FRCNN' in seqName:
                 seqName = seqName[:-6]

@@ -13,8 +13,7 @@ MODEL:
   DiffusionDet:
     NUM_PROPOSALS: 500
     NUM_CLASSES: 1  # crowdhuman
-    FRAME_ID: 0
-    PREVIOUS_DETECTIONS: []
+    PRIOR_METHOD: "none"
 DATASETS:  # crowdhuman
   TRAIN: ("mot17_train_half",)
   TEST: ("mot17_val_half",)
