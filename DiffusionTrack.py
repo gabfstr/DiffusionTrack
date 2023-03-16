@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/'))
 sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/yolox/'))
 sys.path.insert(0, os.path.abspath('SMILEtrack/BoT-SORT/yolox/exps/example/mot/'))
 sys.path.insert(0, os.path.abspath('detectron2/'))
+sys.path.insert(0, os.path.abspath('DiffusionDet/'))
 # sys.path.insert(0, os.path.abspath('../'))
 # sys.path.insert(0, os.path.abspath('../yolox'))
 
@@ -22,14 +23,12 @@ sys.path.insert(0, os.path.abspath('detectron2/'))
 # import detectron2 utilities
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
-from detectron2.config import get_cfg
 from detectron2.utils.logger import setup_logger
 from detectron2.data.detection_utils import read_image
 
 
-from diffusiondet import add_diffusiondet_config, DiffusionDetWithTTA
-from diffusiondet.util.model_ema import add_model_ema_configs, may_build_model_ema, may_get_ema_checkpointer, EMAHook, \
-    apply_model_ema_and_restore, EMADetectionCheckpointer
+from diffusiondet import add_diffusiondet_config
+from diffusiondet.util.model_ema import add_model_ema_configs
 
 # import SMILEtrack utilities
 from yolox.data.data_augment import preproc
