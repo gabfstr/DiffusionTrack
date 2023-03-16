@@ -11,6 +11,7 @@ from typing import List
 from collections import namedtuple
 import numpy as np
 import os
+import logging
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -31,7 +32,6 @@ from .util.misc import nested_tensor_from_tensor_list
 __all__ = ["DiffusionDet"]
 
 ModelPrediction = namedtuple('ModelPrediction', ['pred_noise', 'pred_x_start'])
-
 
 def exists(x):
     return x is not None
@@ -79,7 +79,7 @@ class DiffusionDet(nn.Module):
         self.num_proposals = cfg.MODEL.DiffusionDet.NUM_PROPOSALS
         self.hidden_dim = cfg.MODEL.DiffusionDet.HIDDEN_DIM
         self.num_heads = cfg.MODEL.DiffusionDet.NUM_HEADS
-        
+        self.prior_method = cfg.MODEL.DiffusionDet.PRIOR_METHOD
         
         # Build Backbone.
         self.backbone = build_backbone(cfg)
@@ -199,44 +199,46 @@ class DiffusionDet(nn.Module):
         times = list(reversed(times.int().tolist()))
         time_pairs = list(zip(times[:-1], times[1:]))  # [(T-1, T-2), (T-2, T-3), ..., (1, 0), (0, -1)]
 
-        
-        previous_detections = np.loadtxt("inter_det_file/gab_session2/det.txt",delimiter=',')
-        
-        
+
+        img = torch.randn(shape, device=self.device)
+
+
         #print("\n\n IMG_WHWH shape :",images_whwh.shape)
         
         if images_whwh[0][0]>=1068:
             img_ratio=(1920,1080)
-            #print("yes")
         else :
             img_ratio=(640,480)
-            #print("mot5")
         
-        if previous_detections.shape[0]>0:
-            previous_detections[:,2]=2*(previous_detections[:,2]/img_ratio[0]) - 1
-            previous_detections[:,4]=2*(previous_detections[:,4]/img_ratio[0]) - 1
-            previous_detections[:,3]=2*(previous_detections[:,3]/img_ratio[1]) - 1
-            previous_detections[:,5]=2*(previous_detections[:,5]/img_ratio[1]) - 1
-            n_supp_box = int(0.3* shape[1]/previous_detections.shape[0])
-        else : 
-            n_supp_box=1
+
+        # PRIOR CHANGE
+        if self.prior_method != "none":
+            previous_detections = np.loadtxt("inter_det_file/gab_session2/det.txt",delimiter=',')
+        
+            if previous_detections.shape[0]>0:
+                previous_detections[:,2]=2*(previous_detections[:,2]/img_ratio[0]) - 1
+                previous_detections[:,4]=2*(previous_detections[:,4]/img_ratio[0]) - 1
+                previous_detections[:,3]=2*(previous_detections[:,3]/img_ratio[1]) - 1
+                previous_detections[:,5]=2*(previous_detections[:,5]/img_ratio[1]) - 1
+                
+                #params
+                box_std=1e-4
+                n_supp_box = int(0.3* shape[1]/previous_detections.shape[0])
+            else : 
+                n_supp_box=1
             
-        
-        #print("\n\n IMG_WHWH :",images_whwh)
-        
-        img = torch.randn(shape, device=self.device)
-        
-        
-        #1e-4
-        box_std=1e-4
-        
-        for det_id in range(previous_detections.shape[0]):
-            #img[0][det_id]=torch.tensor(previous_detection[det_id,2:6])
+            #print("\n\n IMG_WHWH :",images_whwh)
             
-            for j in range(n_supp_box):
-                img[0][det_id + j*previous_detections.shape[0] ] = torch.tensor(previous_detections[det_id,2:6]) 
-                #+ box_std *torch.randn_like(torch.tensor(previous_detections[det_id,2:6]))
-        
+            for det_id in range(previous_detections.shape[0]):
+                #img[0][det_id]=torch.tensor(previous_detection[det_id,2:6])
+                
+                for j in range(n_supp_box):
+                    if self.prior_method == "deterministic":
+                        img[0][det_id + j*previous_detections.shape[0] ] = torch.tensor(previous_detections[det_id,2:6]) 
+                    elif self.prior_method == "noisy":
+                        img[0][det_id + j*previous_detections.shape[0] ] = torch.tensor(previous_detections[det_id,2:6]) + box_std *torch.randn_like(torch.tensor(previous_detections[det_id,2:6]))
+
+
         ensemble_score, ensemble_label, ensemble_coord = [], [], []
         x_start = None
         for time, time_next in time_pairs:
