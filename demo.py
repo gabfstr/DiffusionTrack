@@ -40,6 +40,7 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
 # Global
 trackerTimer = Timer()
+detectorTimer = Timer()
 timer = Timer()
 
 
@@ -129,10 +130,12 @@ def main(args):
     exp.test_conf = max(0.001, args.track_low_thresh - 0.01)
 
     if len(args.det_folder)>=1 :
+        timer.tic()
         #Load det files
         detections = np.loadtxt(args.det_folder,delimiter=',')
     
     else:
+        timer.tic()
         # run detection model
         detections = diffdet_detections(args)
     # run tracking model
@@ -175,6 +178,9 @@ if __name__ == "__main__":
 
     
     mainTimer = Timer()
+    trackerTimer = Timer()
+    timer = Timer()
+    
     mainTimer.tic()
     
     #If using det files
@@ -217,5 +223,3 @@ if __name__ == "__main__":
 
     mainTimer.toc()
     print("TOTAL TIME END-to-END (with loading networks and images): ", mainTimer.total_time)
-    print("TOTAL TIME (Detector + Tracker): " + str(timer.total_time) + ", FPS: " + str(1.0 /timer.average_time))
-    print("TOTAL TIME (Tracker only): " + str(trackerTimer.total_time) + ", FPS: " + str(1.0 / trackerTimer.average_time))

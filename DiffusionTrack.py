@@ -46,6 +46,7 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
 # Global
 trackerTimer = Timer()
+detectorTimer = Timer()
 timer = Timer()
 
 
@@ -218,7 +219,9 @@ def diffdet_detections(args):
     
     detection_list=[]
     for img in tqdm.tqdm(sorted(glob.glob("{}/*.jpg".format(args.path)))):
+        detectorTimer.tic()
         predictions = predictor(read_image(img,format="BGR"))
+        detectorTimer.toc()
         try :
             scores = predictions['instances'].to('cpu').scores.numpy()
             classes = predictions['instances'].to('cpu').pred_classes.numpy()
@@ -264,9 +267,6 @@ def image_track(exp, predictor, args):
     if args.ablation:
         files = files[len(files) // 2 + 1:]
 
-
-    vis_folder = osp.join(args.output_dir, "Results_vis")
-    os.makedirs(vis_folder, exist_ok=True)
     
     out_folder = osp.join(args.output_dir, "Tracking_results")
     os.makedirs(out_folder, exist_ok=True)
@@ -350,6 +350,7 @@ def image_track(exp, predictor, args):
                         f"{frame_id},{tid},{tlwh[0]:.2f},{tlwh[1]:.2f},{tlwh[2]:.2f},{tlwh[3]:.2f},{t.score:.2f},-1,-1,-1\n"
                     )
             timer.toc()
+
             online_im = plot_tracking(
                 img_info['raw_img'], online_tlwhs, online_ids, frame_id=frame_id, fps=1. / timer.average_time
             )
@@ -358,9 +359,9 @@ def image_track(exp, predictor, args):
             online_im = img_info['raw_img']
 
         if args.save_frames:
-            save_folder = osp.join(vis_folder, args.name)
-            os.makedirs(save_folder, exist_ok=True)
-            cv2.imwrite(osp.join(save_folder, osp.basename(img_path)), online_im)
+            vis_folder = osp.join(args.output_dir, "Results_vis")
+            os.makedirs(vis_folder, exist_ok=True)
+            cv2.imwrite(osp.join(vis_folder, osp.basename(img_path)), online_im)
 
         if frame_id % 20 == 0:
             logger.info('Processing frame {}/{} ({:.2f} fps)'.format(frame_id, num_frames, 1. / max(1e-5, timer.average_time)))
@@ -415,11 +416,13 @@ def main(exp, args):
 
     # predictor = Predictor(model, exp, args.device, args.fp16)
 ############
-
+    
     if len(args.det_folder)>=1 :
+        timer.tic()
         detections = np.loadtxt(args.det_folder,delimiter=',')
 
     else :
+        timer.tic()
         detections = diffdet_detections(args)
     
     image_track(exp,detections, args)
@@ -563,8 +566,10 @@ if __name__ == "__main__":
             print('{:^120}'.format(ch))
             print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
             main(exp, args)
+ 
 
     mainTimer.toc()
     print("TOTAL TIME END-to-END (with loading networks and images): ", mainTimer.total_time)
-    print("TOTAL TIME (Detector + Tracker): " + str(timer.total_time) + ", FPS: " + str(1.0 /timer.average_time))
-    print("TOTAL TIME (Tracker only): " + str(trackerTimer.total_time) + ", FPS: " + str(1.0 / trackerTimer.average_time))
+    print("TOTAL TIME (Detector only): " + str(detectorTimer.total_time) + ", FPS: " + str(1.0 / max(1e-5,detectorTimer.average_time)))
+    print("TOTAL TIME (Tracker only): " + str(trackerTimer.total_time) + ", FPS: " + str(1.0 / max(1e-5,trackerTimer.average_time)))
+    print("TOTAL TIME (Detector + Tracker): " + str(timer.total_time) + ", FPS: " + str(1.0 /max(1e-5,timer.average_time)))
