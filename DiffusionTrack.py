@@ -121,6 +121,7 @@ def setup_cfg(args):
     #Set numclasses to 1
     #cfg.MODEL.ROI_HEADS.NUM_CLASSES=1
     # Set score_threshold for builtin models
+    cfg.MODEL.DEVICE = str(args.device)
     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = args.confidence_threshold
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.confidence_threshold
     cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = args.confidence_threshold

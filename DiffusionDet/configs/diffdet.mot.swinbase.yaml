@@ -9,11 +9,12 @@ MODEL:
   FPN:
     IN_FEATURES: [ "swin0", "swin1", "swin2", "swin3" ]
   ROI_HEADS:
-    NUM_CLASSES: 1  # crowdhuman
+    NUM_CLASSES: 1  # mot
   DiffusionDet:
     NUM_PROPOSALS: 500
-    NUM_CLASSES: 1  # crowdhuman
-DATASETS:  # crowdhuman
+    NUM_CLASSES: 1  # mot
+    PRIOR_METHOD: "none"
+DATASETS:  # mot17
   TRAIN: ("mot17_train_half",)
   TEST: ("mot17_val_half",)
 DATALOADER:
@@ -28,5 +29,5 @@ INPUT:
     ENABLED: True
   FORMAT: "RGB"
 OUTPUT_DIR: "output_MOT_TRAIN"
-TEST:  # crowdhuman
+TEST:  # mot17
   EVAL_PERIOD: 5000  # disable eval during train since long time

@@ -12,6 +12,7 @@ MODEL:
   DiffusionDet:
     NUM_PROPOSALS: 500
     NUM_CLASSES: 1  # crowdhuman
+    PRIOR_METHOD: "none"
 DATASETS:  # crowdhuman
   TRAIN: ("CrowdHuman_train",)
   TEST: ("CrowdHuman_val",)

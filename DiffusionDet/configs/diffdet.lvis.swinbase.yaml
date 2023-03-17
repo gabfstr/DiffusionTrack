@@ -13,6 +13,7 @@ MODEL:
     NUM_PROPOSALS: 500
     NUM_CLASSES: 1203  # LVIS
     USE_FED_LOSS: True  # LVIS
+    PRIOR_METHOD: "none"
 DATASETS:  # LVIS
   TRAIN: ("lvis_v1_train",)
   TEST: ("lvis_v1_val",)
