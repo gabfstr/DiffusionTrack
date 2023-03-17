@@ -24,26 +24,15 @@ sys.path.insert(0, os.path.abspath('./DiffusionDet/'))
 
 
 # import detectron2 utilities
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
 from detectron2.utils.logger import setup_logger
-from detectron2.data.detection_utils import read_image
 
-
-from diffusiondet import add_diffusiondet_config
-from diffusiondet.util.model_ema import add_model_ema_configs
 
 # import SMILEtrack utilities
-from yolox.data.data_augment import preproc
 from yolox.exp import get_exp
-from yolox.utils import postprocess
-from yolox.utils.visualize import plot_tracking
 
 from tracker.tracking_utils.timer import Timer
-from tracker.bot_sort import BoTSORT
 
-from DiffusionTrack import setup_cfg, get_image_list, write_results, diffdet_detections, image_track
-from DiffusionTrack import Predictor
+from DiffusionTrack import diffdet_detections, image_track
 
 
 
@@ -63,6 +52,7 @@ def make_parser():
     parser.add_argument("-o", "--output-dir", default="output", type=str, help="desired output folder for experiment results")
     parser.add_argument("--save-det",help="If True, will store detections in an additional separate file.",default = True)
     parser.add_argument("--save-frames", dest="save_frames", default=False, action="store_true", help="save sequences with tracks.")
+    parser.add_argument("--det-folder","--detection-folder", default="", type=str, help="Set to folder with detections files in MOT17Det format to run track on existing detection file.")
 
 
     # Detector
@@ -85,11 +75,14 @@ def make_parser():
 #fill in other required args for the model with default values
 def fill_required_args(args):
     
-    #parameters
+    #general
     args.benchmark='MOT17'
     args.eval='test'
     args.f=None
     args.c=None
+    args.ablation = False
+
+    #parameters
     args.experiment_name="DEMO"
     args.default_parameters=False
     args.conf=None
@@ -108,7 +101,7 @@ def fill_required_args(args):
     args.min_box_area=10
     
     # CMC
-    args.cmc_method="file"
+    args.cmc_method="none"
 
     #ReID
     args.fast_reid_config=r"fast_reid/configs/MOT17/sbs_S50.yml"
@@ -129,10 +122,21 @@ def main(args):
 
     args.device = torch.device("cuda" if args.device == "gpu" else "cpu")
 
-    # run detection model
-    detections = diffdet_detections(args)
+
+    exp=get_exp(args.exp_file, args.name)
+    #exp.test_size = (736, 1920)
+        
+    exp.test_conf = max(0.001, args.track_low_thresh - 0.01)
+
+    if len(args.det_folder)>=1 :
+        #Load det files
+        detections = np.loadtxt(args.det_folder,delimiter=',')
+    
+    else:
+        # run detection model
+        detections = diffdet_detections(args)
     # run tracking model
-    image_track(detections, args)
+    image_track(exp, detections, args)
 
 
 
@@ -173,6 +177,12 @@ if __name__ == "__main__":
     mainTimer = Timer()
     mainTimer.tic()
     
+    #If using det files
+    if len(args.det_folder)>=1 :
+        det_files = sorted(glob.glob(args.det_folder + '/*'))
+        logger.info("Loading detection files : "+str(det_files))
+    
+
     #Iterating through image sequence
     j=0
     for path in data_path:
@@ -182,19 +192,23 @@ if __name__ == "__main__":
         args.device = device
         args.batch_size = 1
         args.trt = False
-    
-        if args.default_parameters:
+        args.mot20 = False
         
-            args.exp_file = r'./yolox/exps/example/mot/mot17_exp.py'
-            args.ckpt = r'./pretrained/bytetrack_x_mot17.pth.tar'
+        
+        args.exp_file = r'./yolox/exps/example/mot/mot17_exp.py'
+        args.ckpt = r'./pretrained/bytetrack_x_mot17.pth.tar'
 
 
-            args.track_high_thresh = 0.6
-            args.track_low_thresh = 0.1
-            args.track_buffer = 30    
-            args.new_track_thresh = args.track_high_thresh + 0.1
+        args.track_high_thresh = 0.6
+        args.track_low_thresh = 0.1
+        args.track_buffer = 30    
+        args.new_track_thresh = args.track_high_thresh + 0.1
+
+        if len(args.det_folder)>=1 :
+            args.det_folder=det_files[j]
         j+=1
 
+        
         print(textwrap.wrap('-'*150,width=150,max_lines=1)[0])
         ch="Processing video "+args.name + ' ({}/{})'.format(j,len(data_path))
         print('{:^120}'.format(ch))

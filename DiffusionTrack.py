@@ -250,7 +250,7 @@ def diffdet_detections(args):
     
 
 
-def image_track(predictor, args):
+def image_track(exp, predictor, args):
 
     logger = logging.getLogger("DiffTrack.SMILEtrack")
     logger.info("Beginning tracking...")
@@ -422,7 +422,7 @@ def main(exp, args):
     else :
         detections = diffdet_detections(args)
     
-    image_track(detections, args)
+    image_track(exp,detections, args)
 
 
 if __name__ == "__main__":
