@@ -47,8 +47,6 @@ from DiffusionTrack import Predictor
 
 
 
-
-
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
 # Global
@@ -64,44 +62,61 @@ def make_parser():
     parser.add_argument("path", default = "../../DiffusionDet/datasets/mot/" ,help="path to dataset under evaluation, currently only support MOT17 and MOT20.")
     parser.add_argument("-o", "--output-dir", default="output", type=str, help="desired output folder for experiment results")
     parser.add_argument("--save-det",help="If True, will store detections in an additional separate file.",default = True)
-
-
-    # Experiment
-    parser.add_argument("-f", "--exp_file", default=None, type=str, help="pls input your experiment description file")
-    parser.add_argument("-c", "--ckpt", default=None, type=str, help="ckpt for eval")
-    parser.add_argument("-expn", "--experiment-name", type=str, default=None)
-    parser.add_argument("--default-parameters", dest="default_parameters", default=False, action="store_true", help="use the default parameters as in the paper")
     parser.add_argument("--save-frames", dest="save_frames", default=False, action="store_true", help="save sequences with tracks.")
 
 
     # Detector
     parser.add_argument("--config-file",default="configs/quick_schedules/mask_rcnn_R_50_FPN_inference_acc_test.yaml",metavar="FILE",help="path to config file",)
-    parser.add_argument("--confidence-threshold","--det-thresh",type=float,default=0.5,help="Minimum score for instance predictions to be shown",)
-    parser.add_argument("--opts",help="Modify config options using the command-line 'KEY VALUE' pairs",default=[],nargs=argparse.REMAINDER,)    
+    parser.add_argument("--confidence-threshold","--det-thresh",type=float,default=0.1,help="Minimum score for instance predictions to be shown",)
+    parser.add_argument("--class-id","--det-class",type=int,default=0,help="Id of the COCO class to be detected",)
+    parser.add_argument("--opts",help="Modify config options using the command-line 'KEY VALUE' pairs",default=[],nargs=argparse.REMAINDER,)
 
     # Parameters
     parser.add_argument("--device", default="gpu", type=str, help="device to run our model, can either be cpu or gpu")
     
-    # tracking args
-    parser.add_argument("--track_high_thresh", type=float, default=0.6, help="tracking confidence threshold")
-    parser.add_argument("--track_low_thresh", default=0.1, type=float, help="lowest detection threshold valid for tracks")
-    parser.add_argument("--new_track_thresh", default=0.7, type=float, help="new track thresh")
-    parser.add_argument("--track_buffer", type=int, default=30, help="the frames for keep lost tracks")
-    parser.add_argument("--match_thresh", type=float, default=0.8, help="matching threshold for tracking")
-    parser.add_argument("--aspect_ratio_thresh", type=float, default=1.6, help="threshold for filtering out boxes of which aspect ratio are above the given value.")
-    parser.add_argument('--min_box_area', type=float, default=10, help='filter out tiny boxes')
-
-    # CMC
-    parser.add_argument("--cmc-method", default="file", type=str, help="cmc method: files (Vidstab GMC) | sparseOptFlow | orb | ecc | none")
 
     # ReID
     parser.add_argument("--with-reid", dest="with_reid", default=False, action="store_true", help="use Re-ID flag.")
-    parser.add_argument("--fast-reid-config", dest="fast_reid_config", default=r"fast_reid/configs/MOT17/sbs_S50.yml", type=str, help="reid config file path")
-    parser.add_argument("--fast-reid-weights", dest="fast_reid_weights", default=r"pretrained/mot17_sbs_S50.pth", type=str, help="reid config file path")
-    parser.add_argument('--proximity_thresh', type=float, default=0.5, help='threshold for rejecting low overlap reid matches')
-    parser.add_argument('--appearance_thresh', type=float, default=0.25, help='threshold for rejecting low appearance similarity reid matches')
+    
 
     return parser
+
+
+#fill in other required args for the model with default values
+def fill_required_args(args):
+    
+    #parameters
+    args.benchmark='MOT17'
+    args.eval='test'
+    args.f=None
+    args.c=None
+    args.experiment_name="DEMO"
+    args.default_parameters=False
+    args.conf=None
+    args.nms=None
+    args.tsize=None
+    args.fp16=False
+    args.fuse=False
+
+    # tracking args
+    args.track_high_thresh=0.6
+    args.track_low_thresh=0.1
+    args.new_track_thresh=0.7
+    args.track_buffer=30
+    args.match_thresh=0.8
+    args.aspect_ratio_thresh=1.6
+    args.min_box_area=10
+    
+    # CMC
+    args.cmc_method="file"
+
+    #ReID
+    args.fast_reid_config=r"fast_reid/configs/MOT17/sbs_S50.yml"
+    args.fast_reid_weights=r"pretrained/mot17_sbs_S50.pth"
+    args.proximity_thresh=0.5
+    args.appearance_thresh=0.25
+    
+    return args
 
 
 
@@ -123,11 +138,19 @@ def main(args):
 
 
 if __name__ == "__main__":
+    
+    #Setup process & args
     mp.set_start_method("spawn", force=True)
     args = make_parser().parse_args()
+    
+    #Additional required default args
+    args=fill_required_args(args)
+
+    #Setup logger
     logger = setup_logger(name="DiffTrack")
     logger.info("Arguments: " + str(args))
 
+    #Test args
     if len(args.path) >= 1:
         args.path = sorted(glob.glob((args.path)))
         assert args.path, "The input path(s) was not found"
@@ -150,11 +173,11 @@ if __name__ == "__main__":
     mainTimer = Timer()
     mainTimer.tic()
     
+    #Iterating through image sequence
     j=0
     for path in data_path:
         args.name = os.path.split(os.path.split(path)[0])[1]
-
-
+        args.path = path
         args.fps = 30
         args.device = device
         args.batch_size = 1
