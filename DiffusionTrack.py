@@ -217,15 +217,11 @@ def diffdet_detections(args):
     frame_id=1
     
     detection_list=[]
-    print("BABA")
     for img in tqdm.tqdm(sorted(glob.glob("{}/*.jpg".format(args.path)))):
-        print("avant")
         detectorTimer.tic()
         predictions = predictor(read_image(img,format="BGR"))
-        print("apres")
         detectorTimer.toc()
         try :
-            print("efdzffdz")
             scores = predictions['instances'].to('cpu').scores.numpy()
             classes = predictions['instances'].to('cpu').pred_classes.numpy()
             #print("classes of the predicitons : ",classes)
@@ -251,7 +247,6 @@ def diffdet_detections(args):
         logger.info("Detections saved in {}".format(output))
     
     detection_list=np.array(detection_list)
-    print("heeh")
     return detection_list
     
 
@@ -445,9 +440,9 @@ if __name__ == "__main__":
         out_filename = os.path.split(out_filename)[0]
 
     if args.device == "gpu" or args.device == "cuda":
-        args.device=torch.device("cuda")
+        args.device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.device == "mps":
-        args.device = torch.device("mps")
+        args.device = torch.device("mps" if torch.has_mps else "cpu")
     else :
         args.device=torch.device("cpu")
     logger.info("Device : {}".format(args.device.type))

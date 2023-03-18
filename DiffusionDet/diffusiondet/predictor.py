@@ -188,7 +188,7 @@ class VisualizationDemo(object):
 
         frame_gen = self._frame_from_video(video)
         if self.parallel:
-            print("Function not supported for parralel computing")
+            print("Function not supported for parallel computing")
             return
         else:
             index=0
