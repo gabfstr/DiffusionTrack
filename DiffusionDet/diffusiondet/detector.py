@@ -73,7 +73,7 @@ class DiffusionDet(nn.Module):
         super().__init__()
 
         self.device = torch.device(cfg.MODEL.DEVICE)
-        
+
         self.in_features = cfg.MODEL.ROI_HEADS.IN_FEATURES
         self.num_classes = cfg.MODEL.DiffusionDet.NUM_CLASSES
         self.num_proposals = cfg.MODEL.DiffusionDet.NUM_PROPOSALS

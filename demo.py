@@ -121,9 +121,6 @@ def main(args):
     os.makedirs(output_dir, exist_ok=True)
 
 
-    args.device = torch.device("cuda" if args.device == "gpu" else "cpu")
-
-
     exp=get_exp(args.exp_file, args.name)
     #exp.test_size = (736, 1920)
         
@@ -169,6 +166,14 @@ if __name__ == "__main__":
     if os.path.isfile(args.output_dir):
         out_filename = os.path.split(out_filename)[0]
 
+    if args.device == "gpu" or args.device == "cuda":
+        args.device=torch.device("cuda")
+    if args.device == "mps":
+        args.device = torch.device("mps")
+    else :
+        args.device=torch.device("cpu")
+    logger.info("Device : {}".format(args.device.type))
+    
     
     logger.info("Output tracked detections will be stored in {}".format(out_filename))
     

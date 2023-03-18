@@ -168,6 +168,7 @@ class Predictor(object):
         self.nmsthre = exp.nmsthre
         self.test_size = exp.test_size
         self.device = device
+        print("boubou")
         self.fp16 = fp16
 
         self.rgb_means = (0.485, 0.456, 0.406)
@@ -199,7 +200,6 @@ class Predictor(object):
             timer.tic()
             outputs = self.model(img)
             outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
-
         return outputs, img_info
 
 
@@ -209,21 +209,23 @@ def diffdet_detections(args):
     logger = logging.getLogger("DiffTrack.DiffusionDet")
     logger.info("Beginning detection...")
     cfg = setup_cfg(args)
-
     predictor = DefaultPredictor(cfg)
     out_folder = osp.join(args.output_dir, "Detection_results")
     os.makedirs(out_folder, exist_ok=True)
 
     video_name = os.path.split(os.path.split(args.path)[0])[1]
-
     frame_id=1
     
     detection_list=[]
+    print("BABA")
     for img in tqdm.tqdm(sorted(glob.glob("{}/*.jpg".format(args.path)))):
+        print("avant")
         detectorTimer.tic()
         predictions = predictor(read_image(img,format="BGR"))
+        print("apres")
         detectorTimer.toc()
         try :
+            print("efdzffdz")
             scores = predictions['instances'].to('cpu').scores.numpy()
             classes = predictions['instances'].to('cpu').pred_classes.numpy()
             #print("classes of the predicitons : ",classes)
@@ -249,7 +251,7 @@ def diffdet_detections(args):
         logger.info("Detections saved in {}".format(output))
     
     detection_list=np.array(detection_list)
-    
+    print("heeh")
     return detection_list
     
 
@@ -382,10 +384,6 @@ def main(exp, args):
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-
-    args.device = torch.device("cuda" if args.device == "gpu" else "cpu")
-
-
     if args.conf is not None:
         exp.test_conf = args.conf
     if args.nms is not None:
@@ -446,7 +444,14 @@ if __name__ == "__main__":
     if os.path.isfile(args.output_dir):
         out_filename = os.path.split(out_filename)[0]
 
-    
+    if args.device == "gpu" or args.device == "cuda":
+        args.device=torch.device("cuda")
+    if args.device == "mps":
+        args.device = torch.device("mps")
+    else :
+        args.device=torch.device("cpu")
+    logger.info("Device : {}".format(args.device.type))
+
     logger.info("Output tracked detections will be stored in {}".format(out_filename))
     
 
@@ -503,7 +508,6 @@ if __name__ == "__main__":
             args.ablation = ablation
             args.mot20 = MOT == 20
             args.fps = 30
-            args.device = device
             args.fp16 = fp16
             args.batch_size = 1
             args.trt = False
