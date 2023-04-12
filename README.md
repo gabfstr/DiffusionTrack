@@ -12,7 +12,7 @@ Mutli-object tracking using diffusion object-detection (DiffusionDet finetuned f
 1. Clone the repo 
 
 ```
-git clone 'https://github.com/gabzouz37/DiffusionTrack/'
+git clone 'https://github.com/gabfstr/DiffusionTrack/'
 ```
 
 2. properly install detectron2
